@@ -23,8 +23,8 @@ import android.provider.ContactsContract.CommonDataKinds.StructuredName;
 import android.provider.ContactsContract.CommonDataKinds.Note;
 import android.provider.ContactsContract.CommonDataKinds.Website;
 import android.provider.ContactsContract.RawContacts;
-import android.support.annotation.NonNull;
-import android.support.v4.app.ActivityCompat;
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
 
 import com.facebook.react.bridge.ActivityEventListener;
 import com.facebook.react.bridge.Callback;
@@ -107,12 +107,22 @@ public class ContactsManager extends ReactContextBaseJavaModule implements Activ
         myAsyncTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
 
-    /*
-     * Returns all contacts matching string
-     */
     @ReactMethod
-    public void getContactsMatchingString(final String searchString, final Callback callback) {
-        getAllContactsMatchingString(searchString, callback);
+    public void getCount(final Callback callback) {
+        AsyncTask<Void,Void,Void> myAsyncTask = new AsyncTask<Void,Void,Void>() {
+            @Override
+            protected Void doInBackground(final Void ... params) {
+                Context context = getReactApplicationContext();
+                ContentResolver cr = context.getContentResolver();
+
+                ContactsProvider contactsProvider = new ContactsProvider(cr);
+                Integer contacts = contactsProvider.getContactsCount();
+
+                callback.invoke(contacts);
+                return null;
+            }
+        };
+        myAsyncTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
     }
 
     /**
@@ -122,7 +132,8 @@ public class ContactsManager extends ReactContextBaseJavaModule implements Activ
      * @param searchString String to match
      * @param callback user provided callback to run at completion
      */
-    private void getAllContactsMatchingString(final String searchString, final Callback callback) {
+    @ReactMethod
+    public void getAllContactsMatchingString(final String searchString, final Callback callback) {
         AsyncTask<Void,Void,Void> myAsyncTask = new AsyncTask<Void,Void,Void>() {
             @Override
             protected Void doInBackground(final Void ... params) {
@@ -130,6 +141,54 @@ public class ContactsManager extends ReactContextBaseJavaModule implements Activ
                 ContentResolver cr = context.getContentResolver();
                 ContactsProvider contactsProvider = new ContactsProvider(cr);
                 WritableArray contacts = contactsProvider.getContactsMatchingString(searchString);
+
+                callback.invoke(null, contacts);
+                return null;
+            }
+        };
+        myAsyncTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+    }
+
+    /**
+     * Retrieves contacts matching a phone number.
+     * Uses raw URI when <code>rawUri</code> is <code>true</code>, makes assets copy otherwise.
+     *
+     * @param phoneNumber phone number to match
+     * @param callback user provided callback to run at completion
+     */
+    @ReactMethod
+    public void getContactsByPhoneNumber(final String phoneNumber, final Callback callback) {
+        AsyncTask<Void,Void,Void> myAsyncTask = new AsyncTask<Void,Void,Void>() {
+            @Override
+            protected Void doInBackground(final Void ... params) {
+                Context context = getReactApplicationContext();
+                ContentResolver cr = context.getContentResolver();
+                ContactsProvider contactsProvider = new ContactsProvider(cr);
+                WritableArray contacts = contactsProvider.getContactsByPhoneNumber(phoneNumber);
+
+                callback.invoke(null, contacts);
+                return null;
+            }
+        };
+        myAsyncTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+    }
+
+    /**
+     * Retrieves contacts matching an email address.
+     * Uses raw URI when <code>rawUri</code> is <code>true</code>, makes assets copy otherwise.
+     *
+     * @param emailAddress email address to match
+     * @param callback user provided callback to run at completion
+     */
+    @ReactMethod
+    public void getContactsByEmailAddress(final String emailAddress, final Callback callback) {
+        AsyncTask<Void,Void,Void> myAsyncTask = new AsyncTask<Void,Void,Void>() {
+            @Override
+            protected Void doInBackground(final Void ... params) {
+                Context context = getReactApplicationContext();
+                ContentResolver cr = context.getContentResolver();
+                ContactsProvider contactsProvider = new ContactsProvider(cr);
+                WritableArray contacts = contactsProvider.getContactsByEmailAddress(emailAddress);
 
                 callback.invoke(null, contacts);
                 return null;
@@ -155,6 +214,29 @@ public class ContactsManager extends ReactContextBaseJavaModule implements Activ
                 String photoUri = contactsProvider.getPhotoUriFromContactId(contactId);
 
                 callback.invoke(null, photoUri);
+                return null;
+            }
+        };
+        myAsyncTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+    }
+
+    /**
+     * Retrieves <code>contact</code> for contact, or <code>null</code> if not available.
+     *
+     * @param contactId contact identifier, <code>recordID</code>
+     * @param callback callback
+     */
+    @ReactMethod
+    public void getContactById(final String contactId, final Callback callback) {
+        AsyncTask<Void,Void,Void> myAsyncTask = new AsyncTask<Void,Void,Void>() {
+            @Override
+            protected Void doInBackground(final Void ... params) {
+                Context context = getReactApplicationContext();
+                ContentResolver cr = context.getContentResolver();
+                ContactsProvider contactsProvider = new ContactsProvider(cr);
+                WritableMap contact = contactsProvider.getContactById(contactId);
+
+                callback.invoke(null, contact);
                 return null;
             }
         };
@@ -693,13 +775,13 @@ public class ContactsManager extends ReactContextBaseJavaModule implements Activ
             postalAddressesType = new Integer[numOfPostalAddresses];
             postalAddressesLabel = new String[numOfPostalAddresses];
             for (int i = 0; i < numOfPostalAddresses; i++) {
-                String postalLabel = postalAddresses.getMap(i).getString("label");
-                postalAddressesStreet[i] = postalAddresses.getMap(i).getString("street");
-                postalAddressesCity[i] = postalAddresses.getMap(i).getString("city");
-                postalAddressesState[i] = postalAddresses.getMap(i).getString("state");
-                postalAddressesRegion[i] = postalAddresses.getMap(i).getString("region");
-                postalAddressesPostCode[i] = postalAddresses.getMap(i).getString("postCode");
-                postalAddressesCountry[i] = postalAddresses.getMap(i).getString("country");
+                String postalLabel = getValueFromKey(postalAddresses.getMap(i), "label");
+                postalAddressesStreet[i] = getValueFromKey(postalAddresses.getMap(i), "street");
+                postalAddressesCity[i] =  getValueFromKey(postalAddresses.getMap(i), "city");
+                postalAddressesState[i] = getValueFromKey(postalAddresses.getMap(i), "state");
+                postalAddressesRegion[i] = getValueFromKey(postalAddresses.getMap(i),"region");
+                postalAddressesPostCode[i] = getValueFromKey(postalAddresses.getMap(i), "postCode");
+                postalAddressesCountry[i] = getValueFromKey(postalAddresses.getMap(i), "country");
                 postalAddressesType[i] = mapStringToPostalAddressType(postalLabel);
                 postalAddressesLabel[i] = postalLabel;
             }
@@ -921,6 +1003,13 @@ public class ContactsManager extends ReactContextBaseJavaModule implements Activ
         }
 
         requestCallback = null;
+    }
+
+    /*
+     * Get string value from key
+     */
+    private String getValueFromKey(ReadableMap item, String key) {
+        return item.hasKey(key) ? item.getString(key) : "";
     }
 
     /*

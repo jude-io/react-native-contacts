@@ -4,7 +4,7 @@ import android.content.ContentResolver;
 import android.database.Cursor;
 import android.net.Uri;
 import android.provider.ContactsContract;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -89,14 +89,70 @@ public class ContactsProvider {
     public WritableArray getContactsMatchingString(String searchString) {
         Map<String, Contact> matchingContacts;
         {
-            Cursor cursor = this.contentResolver.query(
-                    Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_FILTER_URI, Uri.encode(searchString)),
-                    // FULL_PROJECTION.toArray(new String[FULL_PROJECTION.size()]),
-                    // ContactsContract.Contacts.DISPLAY_NAME_PRIMARY + " LIKE ?",
-                    // new String[]{"%" + searchString + "%"},
-                    null,
-                    null,
-                    null,
+          Cursor cursor = this.contentResolver.query(
+                  Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_FILTER_URI, Uri.encode(searchString)),
+                  // FULL_PROJECTION.toArray(new String[FULL_PROJECTION.size()]),
+                  // ContactsContract.Contacts.DISPLAY_NAME_PRIMARY + " LIKE ?",
+                  // new String[]{"%" + searchString + "%"},
+                  null,
+                  null,
+                  null,
+                  null
+            );
+
+            try {
+                matchingContacts = loadContactsFrom(cursor);
+            } finally {
+                if (cursor != null) {
+                    cursor.close();
+                }
+            }
+        }
+
+        WritableArray contacts = Arguments.createArray();
+        for (Contact contact : matchingContacts.values()) {
+            contacts.pushMap(contact.toMap());
+        }
+        return contacts;
+    }
+
+
+    public WritableArray getContactsByPhoneNumber(String phoneNumber) {
+        Map<String, Contact> matchingContacts;
+        {
+            Cursor cursor = contentResolver.query(
+                    ContactsContract.Data.CONTENT_URI,
+                    FULL_PROJECTION.toArray(new String[FULL_PROJECTION.size()]),
+                    ContactsContract.CommonDataKinds.Phone.NUMBER + " LIKE ? OR "
+                            + ContactsContract.CommonDataKinds.Phone.NORMALIZED_NUMBER + " LIKE ?",
+                    new String[]{"%" + phoneNumber + "%", "%" + phoneNumber + "%"},
+                    null
+            );
+
+            try {
+                matchingContacts = loadContactsFrom(cursor);
+            } finally {
+                if (cursor != null) {
+                    cursor.close();
+                }
+            }
+        }
+
+        WritableArray contacts = Arguments.createArray();
+        for (Contact contact : matchingContacts.values()) {
+            contacts.pushMap(contact.toMap());
+        }
+        return contacts;
+    }
+
+    public WritableArray getContactsByEmailAddress(String emailAddress) {
+        Map<String, Contact> matchingContacts;
+        {
+            Cursor cursor = contentResolver.query(
+                    ContactsContract.Data.CONTENT_URI,
+                    FULL_PROJECTION.toArray(new String[FULL_PROJECTION.size()]),
+                    ContactsContract.CommonDataKinds.Email.ADDRESS + " LIKE ?",
+                    new String[]{"%" + emailAddress + "%"},
                     null
             );
 
@@ -172,6 +228,13 @@ public class ContactsProvider {
        return null;
     }
 
+    public Integer getContactsCount() {
+        Cursor cursor =  contentResolver.query(ContactsContract.Contacts.CONTENT_URI, null, null, null, null);
+        int count = cursor.getCount();
+
+        return count;
+    }
+
     public WritableArray getContacts() {
         Map<String, Contact> justMe;
         {
@@ -203,6 +266,7 @@ public class ContactsProvider {
                     + ContactsContract.Data.MIMETYPE + "=? OR "
                     + ContactsContract.Data.MIMETYPE + "=? OR "
                     + ContactsContract.Data.MIMETYPE + "=? OR "
+                    + ContactsContract.Data.MIMETYPE + "=? OR "
                     + ContactsContract.Data.MIMETYPE + "=?",
                     new String[]{
                         Email.CONTENT_ITEM_TYPE,
@@ -212,6 +276,7 @@ public class ContactsProvider {
                         StructuredPostal.CONTENT_ITEM_TYPE,
                         Note.CONTENT_ITEM_TYPE,
                         Website.CONTENT_ITEM_TYPE,
+                        Event.CONTENT_ITEM_TYPE,
                     },
                     null
             );
@@ -436,6 +501,7 @@ public class ContactsProvider {
             contact.putString("recordID", contactId);
             contact.putString("rawContactId", rawContactId);
             contact.putString("givenName", TextUtils.isEmpty(givenName) ? displayName : givenName);
+            contact.putString("displayName", displayName);
             contact.putString("middleName", middleName);
             contact.putString("familyName", familyName);
             contact.putString("prefix", prefix);

@@ -2,6 +2,7 @@
 #import <UIKit/UIKit.h>
 #import "RCTContacts.h"
 #import <AssetsLibrary/AssetsLibrary.h>
+#import <React/RCTLog.h>
 
 @implementation RCTContacts {
     CNContactStore * contactStore;
@@ -84,7 +85,7 @@ RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string callback:(RCTResp
                       CNContactOrganizationNameKey,
                       CNContactJobTitleKey,
                       CNContactImageDataAvailableKey,
-                      CNContactNoteKey,
+                      CNContactThumbnailImageDataKey,
                       CNContactUrlAddressesKey,
                       CNContactBirthdayKey
                       ];
@@ -92,7 +93,84 @@ RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string callback:(RCTResp
                                                            keysToFetch:keys
                                                                  error:&contactError];
     [arrayOfContacts enumerateObjectsUsingBlock:^(CNContact * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
-        NSDictionary *contactDictionary = [self contactToDictionary:obj withThumbnails:NO];
+        NSDictionary *contactDictionary = [self contactToDictionary:obj withThumbnails:true];
+        [contacts addObject:contactDictionary];
+    }];
+    callback(@[[NSNull null], contacts]);
+}
+
+RCT_EXPORT_METHOD(getContactsByPhoneNumber:(NSString *)string callback:(RCTResponseSenderBlock) callback)
+{
+    CNContactStore *contactStore = [[CNContactStore alloc] init];
+    if (!contactStore)
+        return;
+    [self getContactsFromAddressBook:contactStore byPhoneNumber:string callback:callback];
+}
+
+-(void) getContactsFromAddressBook:(CNContactStore *)store
+                    byPhoneNumber:(NSString *)phoneNumber
+                          callback:(RCTResponseSenderBlock)callback
+{
+    NSMutableArray *contacts = [[NSMutableArray alloc] init];
+    NSError *contactError = nil;
+    NSArray *keys = @[
+                      CNContactEmailAddressesKey,
+                      CNContactPhoneNumbersKey,
+                      CNContactFamilyNameKey,
+                      CNContactGivenNameKey,
+                      CNContactMiddleNameKey,
+                      CNContactPostalAddressesKey,
+                      CNContactOrganizationNameKey,
+                      CNContactJobTitleKey,
+                      CNContactImageDataAvailableKey,
+                      CNContactThumbnailImageDataKey,
+                      CNContactUrlAddressesKey,
+                      CNContactBirthdayKey
+                      ];
+    CNPhoneNumber *cnPhoneNumber = [[CNPhoneNumber alloc] initWithStringValue:phoneNumber];
+    NSArray *arrayOfContacts = [store unifiedContactsMatchingPredicate:[CNContact predicateForContactsMatchingPhoneNumber:cnPhoneNumber]
+                                                           keysToFetch:keys
+                                                                 error:&contactError];
+    [arrayOfContacts enumerateObjectsUsingBlock:^(CNContact * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+        NSDictionary *contactDictionary = [self contactToDictionary:obj withThumbnails:true];
+        [contacts addObject:contactDictionary];
+    }];
+    callback(@[[NSNull null], contacts]);
+}
+
+RCT_EXPORT_METHOD(getContactsByEmailAddress:(NSString *)string callback:(RCTResponseSenderBlock) callback)
+{
+    CNContactStore *contactStore = [[CNContactStore alloc] init];
+    if (!contactStore)
+        return;
+    [self getContactsFromAddressBook:contactStore byEmailAddress:string callback:callback];
+}
+
+-(void) getContactsFromAddressBook:(CNContactStore *)store
+                    byEmailAddress:(NSString *)emailAddress
+                          callback:(RCTResponseSenderBlock)callback
+{
+    NSMutableArray *contacts = [[NSMutableArray alloc] init];
+    NSError *contactError = nil;
+    NSArray *keys = @[
+                      CNContactEmailAddressesKey,
+                      CNContactPhoneNumbersKey,
+                      CNContactFamilyNameKey,
+                      CNContactGivenNameKey,
+                      CNContactMiddleNameKey,
+                      CNContactPostalAddressesKey,
+                      CNContactOrganizationNameKey,
+                      CNContactJobTitleKey,
+                      CNContactImageDataAvailableKey,
+                      CNContactThumbnailImageDataKey,
+                      CNContactUrlAddressesKey,
+                      CNContactBirthdayKey
+                      ];
+    NSArray *arrayOfContacts = [store unifiedContactsMatchingPredicate:[CNContact predicateForContactsMatchingEmailAddress:emailAddress]
+                                                           keysToFetch:keys
+                                                                 error:&contactError];
+    [arrayOfContacts enumerateObjectsUsingBlock:^(CNContact * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+        NSDictionary *contactDictionary = [self contactToDictionary:obj withThumbnails:true];
         [contacts addObject:contactDictionary];
     }];
     callback(@[[NSNull null], contacts]);
@@ -108,6 +186,46 @@ RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string callback:(RCTResp
     [self retrieveContactsFromAddressBook:contactStore withThumbnails:withThumbnails withCallback:callback];
 }
 
+-(void) getAllContactsCount:(RCTResponseSenderBlock) callback
+{
+    CNContactStore* contactStore = [self contactsStore:callback];
+    if(!contactStore)
+        return;
+
+    NSMutableArray *contacts = [[NSMutableArray alloc] init];
+
+    NSError* contactError;
+    [contactStore containersMatchingPredicate:[CNContainer predicateForContainersWithIdentifiers: @[contactStore.defaultContainerIdentifier]] error:&contactError];
+
+
+    NSMutableArray *keysToFetch = [[NSMutableArray alloc]init];
+    [keysToFetch addObjectsFromArray:@[
+                                       CNContactEmailAddressesKey,
+                                       CNContactPhoneNumbersKey,
+                                       CNContactFamilyNameKey,
+                                       CNContactGivenNameKey,
+                                       CNContactMiddleNameKey,
+                                       CNContactPostalAddressesKey,
+                                       CNContactOrganizationNameKey,
+                                       CNContactJobTitleKey,
+                                       CNContactImageDataAvailableKey,
+                                       CNContactUrlAddressesKey,
+                                       CNContactBirthdayKey
+                                       ]];
+
+    CNContactFetchRequest * request = [[CNContactFetchRequest alloc]initWithKeysToFetch:keysToFetch];
+    BOOL success = [contactStore enumerateContactsWithFetchRequest:request error:&contactError usingBlock:^(CNContact * __nonnull contact, BOOL * __nonnull stop){
+        NSDictionary *contactDict = [self contactToDictionary: contact withThumbnails:false];
+        [contacts addObject:contactDict];
+    }];
+
+    int contactsCount = [contacts count];
+
+    NSNumber *count = [NSNumber numberWithInt:contactsCount];
+
+    callback(@[count]);
+}
+
 RCT_EXPORT_METHOD(getAll:(RCTResponseSenderBlock) callback)
 {
     [self getAllContacts:callback withThumbnails:true];
@@ -116,6 +234,11 @@ RCT_EXPORT_METHOD(getAll:(RCTResponseSenderBlock) callback)
 RCT_EXPORT_METHOD(getAllWithoutPhotos:(RCTResponseSenderBlock) callback)
 {
     [self getAllContacts:callback withThumbnails:false];
+}
+
+RCT_EXPORT_METHOD(getCount:(RCTResponseSenderBlock) callback)
+{
+    [self getAllContactsCount:callback];
 }
 
 -(void) retrieveContactsFromAddressBook:(CNContactStore*)contactStore
@@ -139,7 +262,6 @@ RCT_EXPORT_METHOD(getAllWithoutPhotos:(RCTResponseSenderBlock) callback)
                                        CNContactOrganizationNameKey,
                                        CNContactJobTitleKey,
                                        CNContactImageDataAvailableKey,
-                                       CNContactNoteKey,
                                        CNContactUrlAddressesKey,
                                        CNContactBirthdayKey
                                        ]];
@@ -168,7 +290,6 @@ RCT_EXPORT_METHOD(getAllWithoutPhotos:(RCTResponseSenderBlock) callback)
     NSString *middleName = person.middleName;
     NSString *company = person.organizationName;
     NSString *jobTitle = person.jobTitle;
-    NSString *note = person.note;
     NSDateComponents *birthday = person.birthday;
 
     [output setObject:recordID forKey: @"recordID"];
@@ -191,10 +312,6 @@ RCT_EXPORT_METHOD(getAllWithoutPhotos:(RCTResponseSenderBlock) callback)
 
     if(jobTitle){
         [output setObject: (jobTitle) ? jobTitle : @"" forKey:@"jobTitle"];
-    }
-
-    if(note){
-        [output setObject: (note) ? note : @"" forKey:@"note"];
     }
 
     if (birthday) {
@@ -269,7 +386,7 @@ RCT_EXPORT_METHOD(getAllWithoutPhotos:(RCTResponseSenderBlock) callback)
             [email setObject: label forKey:@"label"];
             [emailAddreses addObject:email];
         } else {
-            NSLog(@"ignoring blank email");
+            RCTLog(@"ignoring blank email");
         }
     }
 
@@ -336,19 +453,22 @@ RCT_EXPORT_METHOD(getAllWithoutPhotos:(RCTResponseSenderBlock) callback)
 
 -(NSString *) getFilePathForThumbnailImage:(CNContact*) contact recordID:(NSString*) recordID
 {
-    NSString *filepath = [self thumbnailFilePath:recordID];
-
-    if([[NSFileManager defaultManager] fileExistsAtPath:filepath]) {
-        return filepath;
-    }
-
     if (contact.imageDataAvailable){
+        NSString *filepath = [self thumbnailFilePath:recordID];
         NSData *contactImageData = contact.thumbnailImageData;
+
+        if ([[NSFileManager defaultManager] fileExistsAtPath:filepath]) {
+            NSData *existingImageData = [NSData dataWithContentsOfFile: filepath];
+
+            if([contactImageData isEqual: existingImageData]) {
+                return filepath;
+            }
+        }
 
         BOOL success = [[NSFileManager defaultManager] createFileAtPath:filepath contents:contactImageData attributes:nil];
 
         if (!success) {
-            NSLog(@"Unable to copy image");
+            RCTLog(@"Unable to copy image");
             return @"";
         }
 
@@ -399,6 +519,53 @@ RCT_EXPORT_METHOD(getPhotoForId:(nonnull NSString *)recordID callback:(RCTRespon
     CNContact* contact = [addressBook unifiedContactWithIdentifier:recordID keysToFetch:keysToFetch error:&contactError];
 
     return [self getFilePathForThumbnailImage:contact recordID:recordID];
+}
+
+RCT_EXPORT_METHOD(getContactById:(nonnull NSString *)recordID callback:(RCTResponseSenderBlock)callback)
+{
+    CNContactStore* contactStore = [self contactsStore:callback];
+    if(!contactStore)
+        return;
+
+    CNEntityType entityType = CNEntityTypeContacts;
+    if([CNContactStore authorizationStatusForEntityType:entityType] == CNAuthorizationStatusNotDetermined)
+    {
+        [contactStore requestAccessForEntityType:entityType completionHandler:^(BOOL granted, NSError * _Nullable error) {
+            if(granted){
+                callback(@[[NSNull null], [self getContact:recordID addressBook:contactStore withThumbnails:false]]);
+            }
+        }];
+    }
+    else if( [CNContactStore authorizationStatusForEntityType:entityType]== CNAuthorizationStatusAuthorized)
+    {
+        callback(@[[NSNull null], [self getContact:recordID addressBook:contactStore withThumbnails:false]]);
+    }
+}
+
+-(NSString *) getContact:(NSString *)recordID
+                               addressBook:(CNContactStore*)addressBook
+                               withThumbnails:(BOOL) withThumbnails
+{
+    NSError* contactError;
+    NSArray *keysToFetch = @[
+                      CNContactEmailAddressesKey,
+                      CNContactPhoneNumbersKey,
+                      CNContactFamilyNameKey,
+                      CNContactGivenNameKey,
+                      CNContactMiddleNameKey,
+                      CNContactPostalAddressesKey,
+                      CNContactOrganizationNameKey,
+                      CNContactJobTitleKey,
+                      CNContactImageDataAvailableKey,
+                      CNContactUrlAddressesKey,
+                      CNContactBirthdayKey
+                      ];
+    CNContact* contact = [addressBook unifiedContactWithIdentifier:recordID keysToFetch:keysToFetch error:&contactError];
+
+    if(!contact)
+            return nil;
+
+    return [self contactToDictionary: contact withThumbnails:withThumbnails];
 }
 
 
@@ -479,16 +646,23 @@ RCT_EXPORT_METHOD(openExistingContact:(NSDictionary *)contactData callback:(RCTR
 
         dispatch_async(dispatch_get_main_queue(), ^{
             UINavigationController* navigation = [[UINavigationController alloc] initWithRootViewController:contactViewController];
-            UIViewController *rooViewController = (UIViewController*)[[[[UIApplication sharedApplication] delegate] window] rootViewController];
+            
+            UIViewController *currentViewController = [UIApplication sharedApplication].keyWindow.rootViewController;
+            
+            while (currentViewController.presentedViewController)
+            {
+                currentViewController = currentViewController.presentedViewController;
+            }
 
             // Cover the contact view with an activity indicator so we can put it in edit mode without user seeing the transition
             UIActivityIndicatorView *activityIndicatorView = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleGray];
-            activityIndicatorView.frame = UIScreen.mainScreen.applicationFrame;
+            activityIndicatorView.frame = UIApplication.sharedApplication.keyWindow.frame;
             [activityIndicatorView startAnimating];
             activityIndicatorView.backgroundColor = [UIColor whiteColor];
             [navigation.view addSubview:activityIndicatorView];
 
-            [rooViewController presentViewController:navigation animated:YES completion:nil];
+            [currentViewController presentViewController:navigation animated:YES completion:nil];
+
 
             // TODO should this 'fake click' method be used? For a brief instance
             // Fake click edit button to enter edit mode
@@ -565,7 +739,6 @@ RCT_EXPORT_METHOD(updateContact:(NSDictionary *)contactData callback:(RCTRespons
                              CNContactImageDataAvailableKey,
                              CNContactThumbnailImageDataKey,
                              CNContactImageDataKey,
-                             CNContactNoteKey,
                              CNContactUrlAddressesKey,
                              CNContactBirthdayKey
                              ];
@@ -594,7 +767,6 @@ RCT_EXPORT_METHOD(updateContact:(NSDictionary *)contactData callback:(RCTRespons
     NSString *middleName = [contactData valueForKey:@"middleName"];
     NSString *company = [contactData valueForKey:@"company"];
     NSString *jobTitle = [contactData valueForKey:@"jobTitle"];
-    NSString *note = [contactData valueForKey:@"note"];
 
     NSDictionary *birthday = [contactData valueForKey:@"birthday"];
 
@@ -603,7 +775,6 @@ RCT_EXPORT_METHOD(updateContact:(NSDictionary *)contactData callback:(RCTRespons
     contact.middleName = middleName;
     contact.organizationName = company;
     contact.jobTitle = jobTitle;
-    contact.note = note;
 
     if (birthday) {
         NSDateComponents *components;
@@ -743,7 +914,7 @@ enum { WDASSETURL_PENDINGREADS = 1, WDASSETURL_ALLFINISHED = 0};
                           [albumReadLock lock];
                           [albumReadLock unlockWithCondition:WDASSETURL_ALLFINISHED];
                       } failureBlock:^(NSError *error) {
-                          NSLog(@"asset error: %@", [error localizedDescription]);
+                          RCTLog(@"asset error: %@", [error localizedDescription]);
 
                           [albumReadLock lock];
                           [albumReadLock unlockWithCondition:WDASSETURL_ALLFINISHED];
@@ -753,7 +924,7 @@ enum { WDASSETURL_PENDINGREADS = 1, WDASSETURL_ALLFINISHED = 0};
     [albumReadLock lockWhenCondition:WDASSETURL_ALLFINISHED];
     [albumReadLock unlock];
 
-    NSLog(@"asset lookup finished: %@ %@", [assetURL absoluteString], (data ? @"exists" : @"does not exist"));
+    RCTLog(@"asset lookup finished: %@ %@", [assetURL absoluteString], (data ? @"exists" : @"does not exist"));
 
     return data;
 }
@@ -794,7 +965,7 @@ RCT_EXPORT_METHOD(writePhotoToPath:(RCTResponseSenderBlock) callback)
         CNContactStore* store = [[CNContactStore alloc] init];
 
         if(!store.defaultContainerIdentifier) {
-            NSLog(@"warn - no contact store container id");
+            RCTLog(@"warn - no contact store container id");
 
             CNAuthorizationStatus authStatus = [CNContactStore authorizationStatusForEntityType:CNEntityTypeContacts];
             if (authStatus == CNAuthorizationStatusDenied || authStatus == CNAuthorizationStatusRestricted){
