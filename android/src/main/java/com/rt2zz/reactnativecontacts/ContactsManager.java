@@ -133,7 +133,7 @@ public class ContactsManager extends ReactContextBaseJavaModule implements Activ
      * @param callback user provided callback to run at completion
      */
     @ReactMethod
-    public void getAllContactsMatchingString(final String searchString, final Callback callback) {
+    public void getContactsMatchingString(final String searchString, final Callback callback) {
         AsyncTask<Void,Void,Void> myAsyncTask = new AsyncTask<Void,Void,Void>() {
             @Override
             protected Void doInBackground(final Void ... params) {
